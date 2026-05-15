@@ -25,7 +25,7 @@ Checkpoints saved to `checkpoints/best_model.pt` and `checkpoints/tokenizer.json
 
 ## Web demo
 
-The model runs entirely in the browser via ONNX Runtime Web — no server, no GPU, just an HTML page.
+The model runs entirely in the browser via ONNX Runtime Web - no server, no GPU, just an HTML page.
 
 ```bash
 cd web
