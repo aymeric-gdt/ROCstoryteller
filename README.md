@@ -23,6 +23,27 @@ python train.py --device cuda --vocab-size 16000 --hidden-dim 768 --num-layers 3
 
 Checkpoints saved to `checkpoints/best_model.pt` and `checkpoints/tokenizer.json`.
 
+## Web demo
+
+The model runs entirely in the browser via ONNX Runtime Web — no server, no GPU, just an HTML page.
+
+```bash
+cd web
+python serve.py
+# Open http://localhost:8080
+```
+
+![Web interface screenshot](web/web-interface.png)
+
+**How it works:**
+- PyTorch model exported to ONNX (FP32, 37.5 MB)
+- BPE tokenizer reimplemented in ~20 lines of JS
+- ONNX Runtime Web (WASM backend) runs the LSTM forward pass token-by-token
+- Temperature sampling + softmax done in JS
+- Generation halts after 5 `<EOS>` tokens (one per sentence)
+
+The ONNX file is large but gzip-friendly (~18 MB compressed). For production use, add a service worker for caching and consider FP16 quantization.
+
 ## Generate
 
 ```bash
@@ -92,7 +113,13 @@ ROCstoryteller/
 ├── train.py          # Training loop
 ├── generate.py       # CLI generation
 ├── play.py           # Interactive REPL
-└── checkpoints/      # Saved models + tokenizer
+├── checkpoints/      # Saved models + tokenizer
+└── web/              # Browser demo (ONNX Runtime Web)
+    ├── serve.py      # Local HTTP server
+    ├── index.html    # Demo page
+    ├── storylstm.onnx # Exported model (FP32)
+    ├── vocab.json    # BPE vocabulary (8k tokens)
+    └── config.json   # Special token IDs
 ```
 
 ## CLI reference
@@ -102,7 +129,7 @@ ROCstoryteller/
 | Flag | Default | Description |
 |---|---|---|
 | `--device` | `cpu` | `cpu` or `cuda` |
-| `--epochs` | `20` | Number of epochs |
+| `--epochs` | `30` | Number of epochs |
 | `--batch-size` | `32` | Batch size (bump to 128 on GPU) |
 | `--lr` | `3e-4` | Learning rate (AdamW) |
 | `--vocab-size` | `8000` | BPE vocabulary size |
