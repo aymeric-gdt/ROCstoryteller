@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 from tqdm import tqdm
 
-from dataset import load_rocstories, insert_sentence_tokens
+from dataset import load_rocstories, insert_sentence_tokens, wrap_paragraph
 from tokenizer import BPETokenizer
 from data_utils import StoryDataset, collate_stories
 from model import StoryLSTM
@@ -74,20 +74,30 @@ def main():
     parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--max-len", type=int, default=128)
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints")
+    parser.add_argument("--mode", type=str, default="sentence",
+                        choices=["sentence", "paragraph"],
+                        help="Wrapping mode: 'sentence' wraps each sentence with <SOS>/<EOS>, "
+                             "'paragraph' wraps the whole story with a single pair")
     args = parser.parse_args()
 
     device = get_device(args.device)
     print(f"Using device: {device}")
+    print(f"Mode: {args.mode}")
 
-    checkpoint_dir = Path(args.checkpoint_dir)
-    checkpoint_dir.mkdir(exist_ok=True)
+    # Checkpoints in subdirectory keyed by mode
+    base_dir = Path(args.checkpoint_dir)
+    checkpoint_dir = base_dir / args.mode
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    # Choose wrapping function
+    wrap_fn = insert_sentence_tokens if args.mode == "sentence" else wrap_paragraph
 
     print("Loading dataset...")
     train_texts, test_texts = load_rocstories()
 
-    print("Wrapping stories with <SOS>/<EOS>...")
-    train_wrapped = [insert_sentence_tokens(s) for s in train_texts]
-    test_wrapped = [insert_sentence_tokens(s) for s in test_texts]
+    print(f"Wrapping stories ({args.mode} mode)...")
+    train_wrapped = [wrap_fn(s) for s in train_texts]
+    test_wrapped = [wrap_fn(s) for s in test_texts]
 
     print("Training BPE tokenizer...")
     tokenizer = BPETokenizer(vocab_size=args.vocab_size)

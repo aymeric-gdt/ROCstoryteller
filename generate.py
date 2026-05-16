@@ -22,6 +22,7 @@ def generate(
     model: StoryLSTM,
     tokenizer: BPETokenizer,
     prompt: str,
+    mode: str = "sentence",
     max_new_tokens: int = 150,
     temperature: float = 0.8,
     num_sentences: int = 5,
@@ -30,13 +31,18 @@ def generate(
     """
     Generate a story continuation from a prompt.
 
-    Generation stops after `num_sentences` <EOS> tokens are produced,
-    or max_new_tokens is reached.
+    In 'sentence' mode, stops after `num_sentences` <EOS> tokens.
+    In 'paragraph' mode, stops after a single <EOS> token (or max_new_tokens).
     """
     model.eval()
     model = model.to(device)
 
-    full_prompt = f"<SOS> {prompt.strip()}"
+    # Build wrapped prompt
+    if mode == "paragraph":
+        full_prompt = f"<SOS> {prompt.strip()}"
+    else:
+        full_prompt = f"<SOS> {prompt.strip()}"
+
     prompt_ids = tokenizer.encode(full_prompt)
     input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=device)
 
@@ -46,6 +52,7 @@ def generate(
     current_id = prompt_ids[-1]
     generated_ids = list(prompt_ids)
     eos_count = 0
+    eos_target = 1 if mode == "paragraph" else num_sentences
 
     for _ in range(max_new_tokens):
         emb = model.embedding(torch.tensor([[current_id]], device=device))
@@ -60,7 +67,7 @@ def generate(
 
         if current_id == tokenizer.EOS_ID:
             eos_count += 1
-            if eos_count >= num_sentences:
+            if eos_count >= eos_target:
                 break
 
     return tokenizer.decode(generated_ids, skip_special=True)
@@ -73,14 +80,26 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=150)
     parser.add_argument("--num-sentences", type=int, default=5)
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/best_model.pt")
-    parser.add_argument("--tokenizer-path", type=str, default="checkpoints/tokenizer.json")
+    parser.add_argument("--mode", type=str, default="sentence",
+                        choices=["sentence", "paragraph"],
+                        help="Wrapping mode (must match training mode)")
+    parser.add_argument("--checkpoint-dir", type=str, default="checkpoints")
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="Path to model checkpoint (overrides --mode/--checkpoint-dir)")
+    parser.add_argument("--tokenizer-path", type=str, default=None,
+                        help="Path to tokenizer (overrides --mode/--checkpoint-dir)")
     args = parser.parse_args()
 
     device = get_device(args.device)
     print(f"Using device: {device}")
 
-    tok = BPETokenizer.load(args.tokenizer_path)
+    # Resolve checkpoint and tokenizer paths
+    from pathlib import Path
+    base = Path(args.checkpoint_dir) / args.mode
+    ckpt_path = args.checkpoint or str(base / "best_model.pt")
+    tok_path = args.tokenizer_path or str(base / "tokenizer.json")
+
+    tok = BPETokenizer.load(tok_path)
     model = StoryLSTM(
         vocab_size=tok.vocab_size_actual,
         embed_dim=256,
@@ -88,10 +107,11 @@ def main():
         num_layers=2,
         pad_idx=tok.PAD_ID,
     )
-    model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+    model.load_state_dict(torch.load(ckpt_path, map_location=device))
 
     story = generate(
         model, tok, args.prompt,
+        mode=args.mode,
         temperature=args.temperature,
         max_new_tokens=args.max_tokens,
         num_sentences=args.num_sentences,

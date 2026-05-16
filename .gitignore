@@ -1,5 +1,5 @@
-checkpoints/*.pt
-checkpoints/*.json
+checkpoints/*/*.pt
+checkpoints/*/*.json
 checkpoints/*.onnx
 .agents/*
 __pycache__

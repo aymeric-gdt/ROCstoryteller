@@ -26,3 +26,14 @@ def insert_sentence_tokens(story: str) -> str:
     for sent in sentences:
         parts.append(f"<SOS> {sent}. <EOS>")
     return " ".join(parts)
+
+
+def wrap_paragraph(story: str) -> str:
+    """
+    Wrap the whole story with a single <SOS>...<EOS> pair.
+    Sentences are kept as-is, separated by periods.
+
+    Input:  "Tom went to the store. He bought milk. He went home."
+    Output: "<SOS> Tom went to the store. He bought milk. He went home. <EOS>"
+    """
+    return f"<SOS> {story.strip()} <EOS>"
